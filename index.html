@@ -1,0 +1,1204 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Turbo Highway — DON'T REACH 4000</title>
+<style>
+  *{margin:0;padding:0;box-sizing:border-box;font-family:'Segoe UI',Tahoma,Geneva,Verdana,sans-serif;}
+  body{background:linear-gradient(135deg,#0f2027,#203a43,#2c5364);height:100vh;display:flex;
+       justify-content:center;align-items:center;overflow:hidden;color:#fff;}
+  .game-wrapper{position:relative;box-shadow:0 20px 50px rgba(0,0,0,.8);border-radius:15px;
+       overflow:hidden;border:4px solid #38bdf8;}
+  canvas{display:block;}
+  #gameCanvas{background:#1e5631;}
+  #scareCanvas{position:fixed;inset:0;width:100%;height:100%;z-index:9999;
+       pointer-events:none;background:#000;}
+  #scareCanvas.off{display:none;}
+  .hud{position:absolute;top:15px;left:15px;right:15px;display:flex;justify-content:space-between;
+       gap:8px;pointer-events:none;z-index:5;font-size:15px;}
+  .hud-box{background:rgba(15,23,42,.8);padding:8px 14px;border-radius:10px;
+       border:1px solid rgba(56,189,248,.4);font-weight:bold;box-shadow:0 4px 10px rgba(0,0,0,.3);}
+  .hud-box span{color:#38bdf8;}
+  .overlay{position:absolute;inset:0;background:rgba(15,23,42,.9);backdrop-filter:blur(8px);
+       display:flex;flex-direction:column;justify-content:center;align-items:center;text-align:center;
+       z-index:10;padding:20px;}
+  .overlay h1{font-size:38px;margin-bottom:10px;background:linear-gradient(to right,#38bdf8,#818cf8);
+       -webkit-background-clip:text;-webkit-text-fill-color:transparent;text-transform:uppercase;letter-spacing:2px;}
+  .overlay p{color:#cbd5e1;margin-bottom:20px;font-size:15px;line-height:1.6;}
+  .controls-info{background:rgba(255,255,255,.05);padding:14px 20px;border-radius:10px;
+       margin-bottom:20px;border:1px solid rgba(255,255,255,.1);font-size:14px;line-height:1.9;}
+  .key{display:inline-block;background:#334155;padding:3px 9px;border-radius:5px;
+       border-bottom:3px solid #1e293b;font-weight:bold;color:#38bdf8;margin:0 2px;}
+  button{background:linear-gradient(135deg,#0284c7,#38bdf8);color:#fff;border:none;padding:14px 38px;
+       font-size:19px;font-weight:bold;border-radius:50px;cursor:pointer;transition:transform .2s;
+       box-shadow:0 10px 20px rgba(56,189,248,.4);}
+  button:hover{transform:translateY(-3px);}
+  .hidden{display:none !important;}
+  .combo{position:absolute;left:50%;top:42%;transform:translate(-50%,-50%);font-size:24px;font-weight:800;
+       color:#fde047;text-shadow:0 0 18px #f59e0b;opacity:0;transition:all .18s ease;pointer-events:none;z-index:8;}
+  .combo.show{opacity:1;transform:translate(-50%,-80%) scale(1.2);}
+  @keyframes quake{
+    0%,100%{transform:translate(0,0) rotate(0)}
+    10%{transform:translate(-14px,9px) rotate(-.6deg)}
+    20%{transform:translate(13px,-11px) rotate(.7deg)}
+    30%{transform:translate(-11px,-8px) rotate(-.4deg)}
+    40%{transform:translate(12px,12px) rotate(.5deg)}
+    50%{transform:translate(-13px,6px) rotate(-.7deg)}
+    60%{transform:translate(10px,-12px) rotate(.4deg)}
+    70%{transform:translate(-9px,11px) rotate(-.5deg)}
+    80%{transform:translate(12px,-6px) rotate(.6deg)}
+    90%{transform:translate(-10px,-9px) rotate(-.3deg)}
+  }
+  .quake{animation:quake .09s linear infinite;}
+</style>
+</head>
+<body>
+
+<div class="game-wrapper" id="wrapper">
+  <div class="hud">
+    <div class="hud-box">SCORE: <span id="scoreDisplay">0</span></div>
+    <div class="hud-box">BEST: <span id="bestDisplay">0</span></div>
+    <div class="hud-box">SPEED: <span id="speedDisplay">0</span> KM/H</div>
+  </div>
+
+  <canvas id="gameCanvas" width="520" height="700"></canvas>
+
+  <div id="startScreen" class="overlay">
+    <h1>Turbo Highway</h1>
+    <p>ট্রাফিক যেকোনো লেনে আসবে।<br>
+       <b style="color:#f87171">Score 5k পার করলে ৩০ সেকেন্ডের জন্য কিছু একটা অপেক্ষা করছে।</b></p>
+    <div class="controls-info">
+      <span class="key">W</span>/<span class="key">↑</span> গতি &nbsp;|&nbsp;
+      <span class="key">S</span>/<span class="key">↓</span> ব্রেক<br>
+      <span class="key">A</span>/<span class="key">←</span> বামে &nbsp;|&nbsp;
+      <span class="key">D</span>/<span class="key">→</span> ডানে &nbsp;|&nbsp;
+      <span class="key">P</span> Pause
+    </div>
+    <button onclick="startGame()">START RACE</button>
+  </div>
+
+  <div id="gameOverScreen" class="overlay hidden">
+    <h1 style="background:linear-gradient(to right,#f43f5e,#fb923c);-webkit-background-clip:text;-webkit-text-fill-color:transparent;">CRASHED!</h1>
+    <p id="finalScoreText" style="font-size:22px;color:#fff;font-weight:bold;">Score: 0</p>
+    <button onclick="startGame()">PLAY AGAIN</button>
+  </div>
+
+  <div id="pauseScreen" class="overlay hidden">
+    <h1>PAUSED</h1>
+    <p>Press <span class="key">P</span> to continue</p>
+    <button onclick="togglePause()">RESUME</button>
+  </div>
+
+  <div id="comboPop" class="combo"></div>
+</div>
+
+<canvas id="scareCanvas" class="off"></canvas>
+
+<script>
+(function () {
+'use strict';
+
+/* =========================================================
+   ⚙️  কনফিগ
+   ========================================================= */
+const SCARE_SCORE    = 4000;   // টেস্ট করতে 300 করে নাও
+const SCARE_DURATION = 30.5;   // মোট ভয়ের দৈর্ঘ্য (সেকেন্ড)
+const SCARE_IMAGE_SRC = '';    // ← 'scare.jpg' দিলে ওই ছবি jumpscare-এ আসবে
+
+/* ================= setup ================= */
+const canvas = document.getElementById('gameCanvas');
+const ctx = canvas.getContext('2d');
+const W = canvas.width, H = canvas.height;
+
+const scareCanvas = document.getElementById('scareCanvas');
+const sctx = scareCanvas.getContext('2d');
+
+const wrapper        = document.getElementById('wrapper');
+const scoreDisplay   = document.getElementById('scoreDisplay');
+const bestDisplay    = document.getElementById('bestDisplay');
+const speedDisplay   = document.getElementById('speedDisplay');
+const startScreen    = document.getElementById('startScreen');
+const gameOverScreen = document.getElementById('gameOverScreen');
+const pauseScreen    = document.getElementById('pauseScreen');
+const finalScoreText = document.getElementById('finalScoreText');
+const comboPop       = document.getElementById('comboPop');
+
+const roadX = 90, roadWidth = 340, laneCount = 3;
+const laneWidth = roadWidth / laneCount;
+const CAR_WIDTH = 50, CAR_HEIGHT = 96;
+
+const enemyColors = ['#ef4444','#eab308','#a855f7','#ec4899','#14b8a6'];
+
+let isGameRunning = false, isPaused = false;
+let scareActive = false, scareDone = false, scareT0 = 0, scareVariant = 0;
+let scareHit2 = false;
+let faceBuf = null, faceBufCtx = null;
+let scareImg = null;
+
+let score = 0, best = parseInt(localStorage.getItem('neonRacerBest') || '0', 10);
+let roadOffset = 0, animationId = null, lastTime = 0, hbClock = 0;
+
+const player = {
+  x: W / 2 - CAR_WIDTH / 2, y: H - 150,
+  width: CAR_WIDTH, height: CAR_HEIGHT,
+  speed: 0, maxSpeed: 18,
+  acceleration: 0.25, friction: 0.08, brakePower: 0.45,
+  vx: 0, turnSpeed: 0.7, turnFriction: 0.85, angle: 0
+};
+
+const keys = {
+  ArrowUp:false, w:false, W:false, ArrowDown:false, s:false, S:false,
+  ArrowLeft:false, a:false, A:false, ArrowRight:false, d:false, D:false
+};
+const pointer = { active:false, x: W / 2 };
+
+let trees = [], enemies = [], particles = [], explosion = [];
+
+/* =========================================================
+   🔊  অডিও ইঞ্জিন
+   ========================================================= */
+let actx = null, master = null, engineOsc = null, engineGain = null, engineFilter = null;
+let scareBus = null, breathSrc = null, breathLfo = null;
+let droneNodes = [], heartTimer = null, whisperTimer = null, creakTimer = null;
+
+function initAudio() {
+  if (actx) { if (actx.state === 'suspended') actx.resume(); return; }
+  const AC = window.AudioContext || window.webkitAudioContext;
+  if (!AC) return;
+  actx = new AC();
+
+  const limiter = actx.createDynamicsCompressor();
+  limiter.threshold.value = -10;
+  limiter.knee.value = 6;
+  limiter.ratio.value = 14;
+  limiter.attack.value = 0.002;
+  limiter.release.value = 0.25;
+
+  master = actx.createGain();
+  master.gain.value = 0.9;
+  master.connect(limiter);
+  limiter.connect(actx.destination);
+
+  engineOsc = actx.createOscillator();
+  engineOsc.type = 'sawtooth';
+  engineOsc.frequency.value = 50;
+  engineFilter = actx.createBiquadFilter();
+  engineFilter.type = 'lowpass';
+  engineFilter.frequency.value = 500;
+  engineGain = actx.createGain();
+  engineGain.gain.value = 0;
+  engineOsc.connect(engineFilter);
+  engineFilter.connect(engineGain);
+  engineGain.connect(master);
+  engineOsc.start();
+}
+
+function updateEngine(speed, running) {
+  if (!actx) return;
+  const t = actx.currentTime;
+  engineOsc.frequency.setTargetAtTime(running ? 45 + speed * 7 : 30, t, 0.08);
+  engineFilter.frequency.setTargetAtTime(running ? 450 + speed * 70 : 200, t, 0.08);
+  engineGain.gain.setTargetAtTime(running ? 0.05 : 0, t, 0.12);
+}
+
+function dest() { return scareBus || master; }
+
+function noiseBuffer(dur) {
+  const len = Math.floor(actx.sampleRate * dur);
+  const buf = actx.createBuffer(1, len, actx.sampleRate);
+  const d = buf.getChannelData(0);
+  for (let i = 0; i < len; i++) d[i] = Math.random() * 2 - 1;
+  return buf;
+}
+
+function playCrash() {
+  if (!actx) return;
+  const t = actx.currentTime;
+  const src = actx.createBufferSource(); src.buffer = noiseBuffer(1.2);
+  const lp = actx.createBiquadFilter(); lp.type = 'lowpass';
+  lp.frequency.setValueAtTime(4500, t);
+  lp.frequency.exponentialRampToValueAtTime(110, t + 1.1);
+  const g = actx.createGain();
+  g.gain.setValueAtTime(0.9, t);
+  g.gain.exponentialRampToValueAtTime(0.001, t + 1.2);
+  src.connect(lp); lp.connect(g); g.connect(master);
+  src.start(t); src.stop(t + 1.2);
+
+  const boom = actx.createOscillator(); boom.type = 'sine';
+  boom.frequency.setValueAtTime(130, t);
+  boom.frequency.exponentialRampToValueAtTime(32, t + 0.9);
+  const bg = actx.createGain();
+  bg.gain.setValueAtTime(0.85, t);
+  bg.gain.exponentialRampToValueAtTime(0.001, t + 1.0);
+  boom.connect(bg); bg.connect(master);
+  boom.start(t); boom.stop(t + 1.0);
+}
+
+function playBlip() {
+  if (!actx) return;
+  const t = actx.currentTime;
+  const o = actx.createOscillator(); o.type = 'triangle';
+  o.frequency.setValueAtTime(1100, t);
+  o.frequency.exponentialRampToValueAtTime(1800, t + 0.12);
+  const g = actx.createGain();
+  g.gain.setValueAtTime(0.0001, t);
+  g.gain.exponentialRampToValueAtTime(0.14, t + 0.02);
+  g.gain.exponentialRampToValueAtTime(0.0001, t + 0.15);
+  o.connect(g); g.connect(master);
+  o.start(t); o.stop(t + 0.16);
+}
+
+function playHeartbeat() {
+  if (!actx) return;
+  const t = actx.currentTime;
+  [0, 0.24].forEach(function (d, i) {
+    const o = actx.createOscillator(); o.type = 'sine';
+    const f = i === 0 ? 58 : 46;
+    o.frequency.setValueAtTime(f, t + d);
+    o.frequency.exponentialRampToValueAtTime(f * 0.55, t + d + 0.2);
+    const g = actx.createGain();
+    g.gain.setValueAtTime(0.0001, t + d);
+    g.gain.exponentialRampToValueAtTime(i === 0 ? 0.75 : 0.5, t + d + 0.015);
+    g.gain.exponentialRampToValueAtTime(0.0001, t + d + 0.24);
+    o.connect(g); g.connect(dest());
+    o.start(t + d); o.stop(t + d + 0.26);
+  });
+}
+
+function playWhisper() {
+  if (!actx) return;
+  const t = actx.currentTime, dur = 1.6;
+  const src = actx.createBufferSource(); src.buffer = noiseBuffer(dur);
+  const bp = actx.createBiquadFilter();
+  bp.type = 'bandpass'; bp.frequency.value = 1400 + Math.random() * 900; bp.Q.value = 8;
+  const g = actx.createGain();
+  g.gain.setValueAtTime(0.0001, t);
+  for (let i = 1; i <= 8; i++) {
+    g.gain.exponentialRampToValueAtTime(0.03 + Math.random() * 0.14, t + dur * i / 8);
+  }
+  g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+  src.connect(bp); bp.connect(g); g.connect(dest());
+  src.start(t); src.stop(t + dur);
+}
+
+function playCreak() {
+  if (!actx) return;
+  const t = actx.currentTime;
+  const src = actx.createBufferSource(); src.buffer = noiseBuffer(1.2);
+  const bp = actx.createBiquadFilter(); bp.type = 'bandpass'; bp.Q.value = 18;
+  bp.frequency.setValueAtTime(4000, t);
+  bp.frequency.exponentialRampToValueAtTime(1500, t + 0.5);
+  bp.frequency.exponentialRampToValueAtTime(320, t + 1.15);
+  const g = actx.createGain();
+  g.gain.setValueAtTime(0.0001, t);
+  g.gain.exponentialRampToValueAtTime(0.4, t + 0.45);
+  g.gain.exponentialRampToValueAtTime(0.0001, t + 1.15);
+  src.connect(bp); bp.connect(g); g.connect(dest());
+  src.start(t); src.stop(t + 1.2);
+}
+
+/* ---------- LOUD SCREAM ---------- */
+function playScream() {
+  if (!actx) return;
+  const t = actx.currentTime;
+
+  const dist = actx.createWaveShaper();
+  const n = 1024, curve = new Float32Array(n);
+  for (let i = 0; i < n; i++) {
+    const x = (i * 2) / n - 1;
+    curve[i] = Math.tanh(x * 3.5);
+  }
+  dist.curve = curve;
+  dist.oversample = '4x';
+  const out = actx.createGain();
+  out.gain.value = 0.95;
+  dist.connect(out); out.connect(master);
+
+  const src = actx.createBufferSource(); src.buffer = noiseBuffer(2.1);
+  const bp = actx.createBiquadFilter(); bp.type = 'bandpass'; bp.Q.value = 1.4;
+  bp.frequency.setValueAtTime(2700, t);
+  bp.frequency.exponentialRampToValueAtTime(400, t + 2.0);
+  const ng = actx.createGain();
+  ng.gain.setValueAtTime(0.0001, t);
+  ng.gain.exponentialRampToValueAtTime(0.95, t + 0.03);
+  ng.gain.exponentialRampToValueAtTime(0.0001, t + 2.0);
+  src.connect(bp); bp.connect(ng); ng.connect(dist);
+  src.start(t); src.stop(t + 2.05);
+
+  [1200, 1780, 2350, 3100].forEach(function (f, i) {
+    const o = actx.createOscillator(); o.type = 'sawtooth';
+    o.frequency.setValueAtTime(f, t);
+    o.frequency.exponentialRampToValueAtTime(f * 0.22, t + 1.8);
+    const g = actx.createGain();
+    g.gain.setValueAtTime(0.0001, t);
+    g.gain.exponentialRampToValueAtTime(0.30 / (i * 0.7 + 1), t + 0.05);
+    g.gain.exponentialRampToValueAtTime(0.0001, t + 1.9);
+    o.connect(g); g.connect(dist);
+    o.start(t); o.stop(t + 1.95);
+  });
+
+  const sub = actx.createOscillator(); sub.type = 'sine';
+  sub.frequency.setValueAtTime(115, t);
+  sub.frequency.exponentialRampToValueAtTime(24, t + 1.7);
+  const sg = actx.createGain();
+  sg.gain.setValueAtTime(0.95, t);
+  sg.gain.exponentialRampToValueAtTime(0.001, t + 1.8);
+  sub.connect(sg); sg.connect(dist);
+  sub.start(t); sub.stop(t + 1.85);
+
+  const imp = actx.createBufferSource(); imp.buffer = noiseBuffer(0.45);
+  const hp = actx.createBiquadFilter(); hp.type = 'highpass'; hp.frequency.value = 900;
+  const ig = actx.createGain();
+  ig.gain.setValueAtTime(0.9, t);
+  ig.gain.exponentialRampToValueAtTime(0.001, t + 0.4);
+  imp.connect(hp); hp.connect(ig); ig.connect(dist);
+  imp.start(t); imp.stop(t + 0.45);
+}
+
+/* ---------- ৩০ সেকেন্ডের creepy bed ---------- */
+function startScareAudio() {
+  if (!actx) return;
+  stopScareAudio(true);
+
+  scareBus = actx.createGain();
+  scareBus.gain.value = 0.0001;
+  scareBus.connect(master);
+  scareBus.gain.exponentialRampToValueAtTime(1, actx.currentTime + 0.6);
+
+  // শ্বাস (loop)
+  breathSrc = actx.createBufferSource();
+  breathSrc.buffer = noiseBuffer(3.2);
+  breathSrc.loop = true;
+  const bp = actx.createBiquadFilter();
+  bp.type = 'bandpass'; bp.frequency.value = 430; bp.Q.value = 0.9;
+  const breathGain = actx.createGain();
+  breathGain.gain.value = 0.10;
+  breathLfo = actx.createOscillator();
+  breathLfo.frequency.value = 0.26;
+  const lfoGain = actx.createGain();
+  lfoGain.gain.value = 0.07;
+  breathLfo.connect(lfoGain);
+  lfoGain.connect(breathGain.gain);
+  breathSrc.connect(bp); bp.connect(breathGain); breathGain.connect(scareBus);
+  breathSrc.start(); breathLfo.start();
+
+  // drone
+  [55, 82.41, 110.5].forEach(function (f, i) {
+    const o = actx.createOscillator();
+    o.type = 'sawtooth';
+    o.frequency.value = f;
+    const lp = actx.createBiquadFilter();
+    lp.type = 'lowpass'; lp.frequency.value = 260;
+    const g = actx.createGain();
+    g.gain.value = 0.05 / (i + 1);
+    o.connect(lp); lp.connect(g); g.connect(scareBus);
+    o.start();
+    droneNodes.push(o);
+  });
+
+  heartTimer = setInterval(function () { playHeartbeat(); }, 1150);
+
+  whisperTimer = setTimeout(function tick() {
+    if (!scareBus) return;
+    playWhisper();
+    whisperTimer = setTimeout(tick, 2200 + Math.random() * 3000);
+  }, 1200);
+
+  creakTimer = setTimeout(function tick() {
+    if (!scareBus) return;
+    playCreak();
+    creakTimer = setTimeout(tick, 4000 + Math.random() * 3500);
+  }, 2400);
+}
+
+function stopScareAudio(immediate) {
+  clearInterval(heartTimer); heartTimer = null;
+  clearTimeout(whisperTimer); whisperTimer = null;
+  clearTimeout(creakTimer); creakTimer = null;
+
+  if (!scareBus) return;
+  const bus = scareBus;
+  scareBus = null;
+
+  try {
+    const t = actx.currentTime;
+    bus.gain.cancelScheduledValues(t);
+    bus.gain.setValueAtTime(Math.max(bus.gain.value, 0.0001), t);
+    bus.gain.exponentialRampToValueAtTime(0.0001, t + (immediate ? 0.06 : 0.9));
+  } catch (e) {}
+
+  setTimeout(function () {
+    try { if (breathSrc) breathSrc.stop(); } catch (e) {}
+    try { if (breathLfo) breathLfo.stop(); } catch (e) {}
+    droneNodes.forEach(function (o) { try { o.stop(); } catch (e) {} });
+    breathSrc = null; breathLfo = null; droneNodes = [];
+    setTimeout(function () { try { bus.disconnect(); } catch (e) {} }, 250);
+  }, immediate ? 130 : 1100);
+}
+
+/* ================= input ================= */
+window.addEventListener('keydown', function (e) {
+  if (Object.prototype.hasOwnProperty.call(keys, e.key)) {
+    keys[e.key] = true;
+    if (e.key.indexOf('Arrow') === 0) e.preventDefault();
+  }
+  if (e.key === 'p' || e.key === 'P' || e.key === 'Escape') togglePause();
+});
+window.addEventListener('keyup', function (e) {
+  if (Object.prototype.hasOwnProperty.call(keys, e.key)) keys[e.key] = false;
+});
+
+function pointerPos(e) {
+  const r = canvas.getBoundingClientRect();
+  return (e.clientX - r.left) * (W / r.width);
+}
+canvas.addEventListener('pointerdown', function (e) {
+  if (!isGameRunning) return;
+  pointer.active = true; pointer.x = pointerPos(e);
+});
+canvas.addEventListener('pointermove', function (e) {
+  if (!pointer.active) return;
+  pointer.x = pointerPos(e);
+});
+window.addEventListener('pointerup', function () { pointer.active = false; });
+
+/* ================= entities ================= */
+function initEnvironment() {
+  trees = [];
+  for (let i = 0; i < 12; i++) {
+    trees.push({
+      x: Math.random() < 0.5 ? Math.random() * 45 + 15 : Math.random() * 45 + 450,
+      y: Math.random() * H,
+      size: Math.random() * 12 + 18
+    });
+  }
+}
+
+function spawnEnemy() {
+  if (enemies.some(function (e) { return e.y < 210; })) return;
+  const minX = roadX + 10;
+  const maxX = roadX + roadWidth - CAR_WIDTH - 10;
+  const shift = Math.random() < 0.45 ? (Math.random() < 0.5 ? 0.8 : -0.8) : 0;
+  enemies.push({
+    x: Math.random() * (maxX - minX) + minX,
+    y: -120, width: CAR_WIDTH, height: CAR_HEIGHT,
+    speed: Math.random() * 3 + 4 + Math.min(score / 4000, 3.5),
+    vx: shift,
+    color: enemyColors[Math.floor(Math.random() * enemyColors.length)],
+    passed: false
+  });
+}
+
+function explode(x, y) {
+  for (let i = 0; i < 80; i++) {
+    const a = Math.random() * Math.PI * 2, s = Math.random() * 8 + 2;
+    explosion.push({
+      x: x, y: y, vx: Math.cos(a) * s, vy: Math.sin(a) * s,
+      life: 1, size: Math.random() * 7 + 3,
+      color: Math.random() < 0.5 ? '#f97316' : (Math.random() < 0.5 ? '#fbbf24' : '#ef4444')
+    });
+  }
+}
+
+/* ================= draw game ================= */
+function drawCar(x, y, width, height, color, angle, isPlayer) {
+  ctx.save();
+  ctx.translate(x + width / 2, y + height / 2);
+  ctx.rotate(angle || 0);
+
+  ctx.fillStyle = 'rgba(0,0,0,.4)';
+  ctx.beginPath();
+  ctx.roundRect(-width / 2 + 5, -height / 2 + 8, width, height, 10);
+  ctx.fill();
+
+  ctx.fillStyle = '#111';
+  ctx.fillRect(-width / 2 - 3, -height / 2 + 14, 4, 20);
+  ctx.fillRect(width / 2 - 1, -height / 2 + 14, 4, 20);
+  ctx.fillRect(-width / 2 - 3, height / 2 - 32, 4, 20);
+  ctx.fillRect(width / 2 - 1, height / 2 - 32, 4, 20);
+
+  if (isPlayer) { ctx.shadowColor = '#38bdf8'; ctx.shadowBlur = 22; }
+  ctx.fillStyle = color;
+  ctx.beginPath();
+  ctx.roundRect(-width / 2, -height / 2, width, height, 10);
+  ctx.fill();
+  ctx.shadowBlur = 0;
+
+  ctx.fillStyle = 'rgba(255,255,255,.15)';
+  ctx.beginPath();
+  ctx.roundRect(-width / 2 + 4, -height / 2 + 2, width / 2 - 4, height - 4, 6);
+  ctx.fill();
+
+  ctx.fillStyle = '#0f172a';
+  ctx.beginPath(); ctx.roundRect(-width / 2 + 7, -height / 2 + 20, width - 14, 20, 4); ctx.fill();
+  ctx.beginPath(); ctx.roundRect(-width / 2 + 8, height / 2 - 26, width - 16, 13, 3); ctx.fill();
+
+  ctx.fillStyle = color;
+  ctx.fillRect(-width / 2 + 9, -height / 2 + 40, width - 18, 24);
+
+  ctx.fillStyle = '#fef08a';
+  ctx.fillRect(-width / 2 + 6, -height / 2 + 1, 9, 4);
+  ctx.fillRect(width / 2 - 15, -height / 2 + 1, 9, 4);
+
+  if (isPlayer) {
+    const grad = ctx.createLinearGradient(0, -height / 2, 0, -height / 2 - 110);
+    grad.addColorStop(0, 'rgba(254,240,138,.32)');
+    grad.addColorStop(1, 'rgba(254,240,138,0)');
+    ctx.fillStyle = grad;
+    ctx.beginPath();
+    ctx.moveTo(-width / 2 + 6, -height / 2);
+    ctx.lineTo(-width / 2 - 22, -height / 2 - 110);
+    ctx.lineTo(width / 2 + 22, -height / 2 - 110);
+    ctx.lineTo(width / 2 - 6, -height / 2);
+    ctx.fill();
+
+    const braking = keys.ArrowDown || keys.s || keys.S;
+    ctx.fillStyle = braking ? '#ff2020' : '#991b1b';
+    if (braking) { ctx.shadowColor = '#ff0000'; ctx.shadowBlur = 14; }
+    ctx.fillRect(-width / 2 + 6, height / 2 - 3, 10, 3);
+    ctx.fillRect(width / 2 - 16, height / 2 - 3, 10, 3);
+    ctx.shadowBlur = 0;
+  }
+  ctx.restore();
+}
+
+function drawBackground() {
+  const g = ctx.createLinearGradient(0, 0, 0, H);
+  g.addColorStop(0, '#12331f'); g.addColorStop(1, '#1e5631');
+  ctx.fillStyle = g; ctx.fillRect(0, 0, W, H);
+
+  const sh = 40, off = roadOffset % (sh * 2);
+  for (let i = -1; i < Math.ceil(H / sh) + 1; i++) {
+    const y = i * sh + off;
+    ctx.fillStyle = i % 2 === 0 ? '#ef4444' : '#f8fafc';
+    ctx.fillRect(roadX - 10, y, 10, sh);
+    ctx.fillRect(roadX + roadWidth, y, 10, sh);
+  }
+
+  const rg = ctx.createLinearGradient(roadX, 0, roadX + roadWidth, 0);
+  rg.addColorStop(0, '#1e293b'); rg.addColorStop(.5, '#334155'); rg.addColorStop(1, '#1e293b');
+  ctx.fillStyle = rg; ctx.fillRect(roadX, 0, roadWidth, H);
+
+  ctx.save();
+  ctx.shadowColor = 'rgba(56,189,248,.85)';
+  ctx.shadowBlur = 16;
+  ctx.strokeStyle = 'rgba(226,232,240,.85)';
+  ctx.lineWidth = 4;
+  ctx.setLineDash([30, 30]);
+  ctx.lineDashOffset = -roadOffset;
+  for (let i = 1; i < laneCount; i++) {
+    const lx = roadX + i * laneWidth;
+    ctx.beginPath(); ctx.moveTo(lx, 0); ctx.lineTo(lx, H); ctx.stroke();
+  }
+  ctx.restore();
+  ctx.setLineDash([]);
+
+  for (const t of trees) {
+    ctx.fillStyle = 'rgba(0,0,0,.25)';
+    ctx.beginPath(); ctx.arc(t.x + 5, t.y + 6, t.size, 0, Math.PI * 2); ctx.fill();
+    ctx.fillStyle = '#15803d';
+    ctx.beginPath(); ctx.arc(t.x, t.y, t.size, 0, Math.PI * 2); ctx.fill();
+    ctx.fillStyle = '#22c55e';
+    ctx.beginPath(); ctx.arc(t.x - 4, t.y - 4, t.size * .65, 0, Math.PI * 2); ctx.fill();
+  }
+}
+
+function drawParticles() {
+  for (const p of particles) {
+    ctx.fillStyle = 'rgba(203,213,225,' + p.alpha.toFixed(3) + ')';
+    ctx.beginPath(); ctx.arc(p.x, p.y, p.size, 0, Math.PI * 2); ctx.fill();
+  }
+}
+
+function drawExplosion() {
+  for (const p of explosion) {
+    ctx.globalAlpha = Math.max(p.life, 0);
+    ctx.fillStyle = p.color;
+    ctx.beginPath(); ctx.arc(p.x, p.y, Math.max(p.size * p.life, 0.5), 0, Math.PI * 2); ctx.fill();
+  }
+  ctx.globalAlpha = 1;
+}
+
+/* ================= update ================= */
+function updateParticles(dtf) {
+  if (player.speed > 2 && Math.random() < 0.6) {
+    particles.push({
+      x: player.x + player.width / 2 + (Math.random() * 12 - 6),
+      y: player.y + player.height,
+      size: Math.random() * 4 + 2, alpha: 0.6
+    });
+  }
+  for (let i = particles.length - 1; i >= 0; i--) {
+    const p = particles[i];
+    p.y += (player.speed * 0.5 + 2) * dtf;
+    p.size += 0.2 * dtf;
+    p.alpha -= 0.025 * dtf;
+    if (p.alpha <= 0) particles.splice(i, 1);
+  }
+}
+
+function updatePhysics(dtf) {
+  if (pointer.active) {
+    const targetX = pointer.x - player.width / 2;
+    player.vx += (targetX - player.x) * 0.06 * dtf;
+    player.vx *= Math.pow(0.88, dtf);
+    player.speed += player.acceleration * 0.9 * dtf;
+  } else {
+    if (keys.ArrowLeft || keys.a || keys.A) player.vx -= player.turnSpeed * dtf;
+    if (keys.ArrowRight || keys.d || keys.D) player.vx += player.turnSpeed * dtf;
+    player.vx *= Math.pow(player.turnFriction, dtf);
+  }
+
+  if (keys.ArrowUp || keys.w || keys.W) player.speed += player.acceleration * dtf;
+  else if (keys.ArrowDown || keys.s || keys.S) player.speed -= player.brakePower * dtf;
+  else if (!pointer.active) player.speed -= player.friction * dtf;
+
+  player.speed = Math.max(2, Math.min(player.speed, player.maxSpeed));
+
+  player.x += player.vx * dtf;
+  player.angle = player.vx * 0.035;
+
+  if (player.x < roadX + 5) { player.x = roadX + 5; player.vx = 0; }
+  if (player.x + player.width > roadX + roadWidth - 5) {
+    player.x = roadX + roadWidth - player.width - 5; player.vx = 0;
+  }
+
+  roadOffset += player.speed * dtf;
+  score += player.speed * 0.15 * dtf;
+
+  for (const t of trees) {
+    t.y += player.speed * dtf;
+    if (t.y > H + 30) {
+      t.y = -30;
+      t.x = Math.random() < 0.5 ? Math.random() * 45 + 15 : Math.random() * 45 + 450;
+    }
+  }
+
+  const spawnChance = (0.02 + Math.min(score / 50000, 0.03)) * dtf;
+  if (Math.random() < spawnChance) spawnEnemy();
+
+  for (let i = enemies.length - 1; i >= 0; i--) {
+    const en = enemies[i];
+    en.y += (player.speed - en.speed) * dtf;
+
+    if (en.vx !== 0) {
+      en.x += en.vx * dtf;
+      if (en.x < roadX + 8 || en.x + en.width > roadX + roadWidth - 8) en.vx *= -1;
+    }
+
+    if (player.x + 4 < en.x + en.width - 4 &&
+        player.x + player.width - 4 > en.x + 4 &&
+        player.y + 4 < en.y + en.height - 4 &&
+        player.y + player.height - 4 > en.y + 4) {
+      endGame();
+      return;
+    }
+
+    if (!en.passed && en.y > player.y + player.height) {
+      en.passed = true;
+      const gap = Math.abs((en.x + en.width / 2) - (player.x + player.width / 2));
+      if (gap < 95) { score += 30; showCombo('NEAR MISS +30'); playBlip(); }
+    }
+
+    if (en.y > H + 150 || en.y < -320) enemies.splice(i, 1);
+  }
+
+  updateParticles(dtf);
+
+  scoreDisplay.innerText = Math.floor(score);
+  speedDisplay.innerText = Math.floor(player.speed * 12);
+
+  if (!scareDone && score >= SCARE_SCORE - 700) {
+    hbClock += dtf / 60;
+    if (hbClock > 0.85) { hbClock = 0; playHeartbeat(); }
+    if (Math.random() < (dtf / 60) * 0.3) playWhisper();
+  }
+
+  if (!scareDone && score >= SCARE_SCORE) triggerJumpscare();
+}
+
+function showCombo(text) {
+  comboPop.innerText = text;
+  comboPop.classList.add('show');
+  clearTimeout(showCombo._t);
+  showCombo._t = setTimeout(function () { comboPop.classList.remove('show'); }, 600);
+}
+
+/* ================= render loop ================= */
+function render() {
+  ctx.clearRect(0, 0, W, H);
+  drawBackground();
+  drawParticles();
+  for (const en of enemies) drawCar(en.x, en.y, en.width, en.height, en.color, en.vx * 0.06, false);
+  drawCar(player.x, player.y, player.width, player.height, '#0ea5e9', player.angle, true);
+  drawExplosion();
+
+  if (!scareDone && score >= SCARE_SCORE - 700) {
+    const a = 0.10 + Math.sin(performance.now() / 220) * 0.07;
+    const vg = ctx.createRadialGradient(W / 2, H / 2, H * 0.25, W / 2, H / 2, H * 0.78);
+    vg.addColorStop(0, 'rgba(140,0,0,0)');
+    vg.addColorStop(1, 'rgba(140,0,0,' + Math.max(a, 0).toFixed(3) + ')');
+    ctx.fillStyle = vg;
+    ctx.fillRect(0, 0, W, H);
+  }
+}
+
+function gameLoop(ts) {
+  if (!isGameRunning) return;
+  if (!lastTime) lastTime = ts;
+  let dt = ts - lastTime;
+  lastTime = ts;
+  if (dt > 100) dt = 100;
+  const dtf = dt / 16.6667;
+
+  if (!isPaused && !scareActive) updatePhysics(dtf);
+  if (isGameRunning) render();
+
+  updateEngine(player.speed, isGameRunning && !isPaused && !scareActive);
+  animationId = requestAnimationFrame(gameLoop);
+}
+
+/* =========================================================
+   🎃  ৩০ সেকেন্ডের FULLSCREEN JUMPSCARE
+   ========================================================= */
+const FACES = [
+  { skin: ['#f4f2e4', '#bfbdab', '#3b3a32'], eyeFill: '#000', pupil: '#ff1a1a',
+    glow: '#ff0000', teeth: '#e6e2cc', blood: 'rgba(150,0,0,0.92)', mouthR: 1.0, style: 'pale' },
+  { skin: ['#ff6b6b', '#8b0000', '#160000'], eyeFill: '#000', pupil: '#ffffff',
+    glow: '#ffffff', teeth: '#ffe2e2', blood: 'rgba(90,0,0,0.95)', mouthR: 1.3, style: 'bloody' },
+  { skin: ['#9a9a9a', '#232323', '#000000'], eyeFill: '#000', pupil: '#39ff88',
+    glow: '#00ff88', teeth: '#c8c8c8', blood: 'rgba(0,0,0,0)', mouthR: 1.45, style: 'void' }
+];
+
+function sizeScare() {
+  scareCanvas.width = window.innerWidth;
+  scareCanvas.height = window.innerHeight;
+}
+window.addEventListener('resize', function () {
+  sizeScare();
+  faceBuf = null;
+});
+
+function loadScareImage() {
+  if (!SCARE_IMAGE_SRC) return;
+  const img = new Image();
+  img.onload = function () { scareImg = img; };
+  img.onerror = function () { scareImg = null; };
+  img.src = SCARE_IMAGE_SRC;
+}
+
+function triggerJumpscare() {
+  scareDone = true;
+  scareActive = true;
+  scareT0 = 0;
+  scareHit2 = false;
+  scareVariant = Math.floor(Math.random() * FACES.length);
+  faceBuf = null;
+  sizeScare();
+  scareCanvas.classList.remove('off');
+  wrapper.classList.add('quake');
+  playScream();
+  startScareAudio();
+  setTimeout(function () { if (scareActive) wrapper.classList.remove('quake'); }, 3400);
+  requestAnimationFrame(scareFrame);
+}
+
+function scareFrame(ts) {
+  if (!scareActive) return;
+  if (!scareT0) scareT0 = ts;
+  const t = (ts - scareT0) / 1000;
+
+  if (t > SCARE_DURATION) { endScare(); return; }
+
+  // SECOND HIT (t ≈ 29s)
+  if (t >= 29 && !scareHit2) {
+    scareHit2 = true;
+    playScream();
+    wrapper.classList.add('quake');
+  }
+
+  renderScare(t);
+  requestAnimationFrame(scareFrame);
+}
+
+function drawEyes(a, SW, SH) {
+  const cx = SW / 2, cy = SH / 2;
+  sctx.save();
+  sctx.shadowColor = '#ff0000';
+  sctx.shadowBlur = 80;
+  sctx.fillStyle = 'rgba(255,0,0,' + (0.3 + 0.7 * a).toFixed(2) + ')';
+  const r = Math.min(SW, SH) * 0.02 * a + 2;
+  sctx.beginPath(); sctx.arc(cx - SW * 0.055, cy - SH * 0.03, r, 0, Math.PI * 2); sctx.fill();
+  sctx.beginPath(); sctx.arc(cx + SW * 0.055, cy - SH * 0.03, r, 0, Math.PI * 2); sctx.fill();
+  sctx.restore();
+
+  sctx.fillStyle = 'rgba(45,45,45,' + (0.14 * a).toFixed(2) + ')';
+  sctx.beginPath();
+  sctx.ellipse(cx, cy + SH * 0.05, SW * 0.2, SH * 0.29, 0, 0, Math.PI * 2);
+  sctx.fill();
+}
+
+function renderScare(t) {
+  const SW = scareCanvas.width, SH = scareCanvas.height;
+  sctx.setTransform(1, 0, 0, 1, 0, 0);
+  sctx.globalAlpha = 1;
+  sctx.globalCompositeOperation = 'source-over';
+  sctx.fillStyle = '#000';
+  sctx.fillRect(0, 0, SW, SH);
+
+  /* ---- PHASE 0: 0 – 0.6s (eyes in dark) ---- */
+  if (t < 0.6) { drawEyes(t / 0.6, SW, SH); return; }
+
+  /* ---- PHASE 4: 27 – 29s (blackout, eyes only) ---- */
+  if (t > 27 && t < 29) { drawEyes((t - 27) / 2, SW, SH); return; }
+
+  /* ---- PHASE 5: 29s+ (final hit) ---- */
+  if (t >= 29) {
+    drawFaceComposite(2.35, t, 46);
+    sctx.globalCompositeOperation = 'difference';
+    sctx.fillStyle = '#fff';
+    sctx.fillRect(0, 0, SW, SH);
+    sctx.globalCompositeOperation = 'source-over';
+    return;
+  }
+
+  /* ---- PHASE 1-3: face ---- */
+  let scale, amp;
+  if (t < 1.2) {
+    scale = 0.9 + (t - 0.6) * 1.6;
+    amp = 42;
+  } else if (t < 18) {
+    scale = 1.86 - (t - 1.2) * 0.018 + Math.sin(t * 1.7) * 0.02;
+    amp = 14 + Math.sin(t * 3.1) * 8;
+  } else if (t < 24) {
+    scale = 1.52 + (t - 18) * 0.10;
+    amp = 20 + Math.sin(t * 6.3) * 12;
+  } else {
+    scale = 2.12 - (t - 24) * 0.55;
+    amp = 10;
+  }
+
+  drawFaceComposite(scale, t, amp);
+
+  /* ---- creepy text ---- */
+  if (t > 11 && t < 16) {
+    drawCreepyText('LOOK BEHIND YOU', t, SW, SH, '#ff2020');
+  } else if (t > 19 && t < 24) {
+    drawCreepyText('I CAN SEE YOU', t, SW, SH, '#ff4444');
+  }
+
+  /* ---- fade to black ---- */
+  if (t > 26 && t <= 27) {
+    sctx.fillStyle = 'rgba(0,0,0,' + Math.min((t - 26) / 1, 1).toFixed(3) + ')';
+    sctx.fillRect(0, 0, SW, SH);
+  }
+}
+
+function drawCreepyText(text, t, SW, SH, color) {
+  sctx.save();
+  sctx.globalAlpha = 0.55 + Math.random() * 0.45;
+  sctx.font = 'bold ' + Math.round(SH * 0.075) + 'px "Segoe UI", Arial, sans-serif';
+  sctx.textAlign = 'center';
+  sctx.textBaseline = 'middle';
+  sctx.fillStyle = color;
+  sctx.shadowColor = '#ff0000';
+  sctx.shadowBlur = 40;
+  const jx = (Math.random() - 0.5) * 14;
+  const jy = (Math.random() - 0.5) * 10;
+  sctx.fillText(text, SW / 2 + jx, SH * 0.86 + jy);
+  sctx.restore();
+}
+
+function drawFaceComposite(scale, t, amp) {
+  const SW = scareCanvas.width, SH = scareCanvas.height;
+
+  if (!faceBuf || faceBuf.width !== SW || faceBuf.height !== SH) {
+    faceBuf = document.createElement('canvas');
+    faceBuf.width = SW;
+    faceBuf.height = SH;
+    faceBufCtx = faceBuf.getContext('2d');
+  }
+
+  drawFaceInto(faceBufCtx, scareVariant, t, scale);
+
+  const slices = 30;
+  const sliceH = Math.ceil(SH / slices) + 2;
+  for (let i = 0; i < slices; i++) {
+    const sy = Math.floor(i * SH / slices);
+    const dx = (Math.random() - 0.5) * amp;
+    sctx.drawImage(faceBuf, 0, sy, SW, sliceH, dx, sy, SW, sliceH);
+  }
+
+  const f = Math.random();
+  if (f < 0.05) {
+    sctx.globalCompositeOperation = 'difference';
+    sctx.fillStyle = '#fff';
+    sctx.fillRect(0, 0, SW, SH);
+    sctx.globalCompositeOperation = 'source-over';
+  } else if (f < 0.09) {
+    sctx.fillStyle = 'rgba(160,0,0,0.5)';
+    sctx.fillRect(0, 0, SW, SH);
+  } else if (f < 0.11) {
+    sctx.fillStyle = '#000';
+    sctx.fillRect(0, 0, SW, SH);
+  }
+
+  for (let i = 0; i < 380; i++) {
+    sctx.fillStyle = 'rgba(255,255,255,' + (Math.random() * 0.08).toFixed(3) + ')';
+    sctx.fillRect(Math.random() * SW, Math.random() * SH, 2, 2);
+  }
+}
+
+function drawFaceInto(g, vi, t, scale) {
+  const SW = g.canvas.width, SH = g.canvas.height;
+  g.setTransform(1, 0, 0, 1, 0, 0);
+  g.fillStyle = '#050505';
+  g.fillRect(0, 0, SW, SH);
+
+  /* --- ইমেজ থাকলে সেটাই দেখাও --- */
+  if (scareImg) {
+    const s = Math.max(SW / scareImg.width, SH / scareImg.height) * (scale * 0.8);
+    g.save();
+    g.translate(SW / 2 + (Math.random() - 0.5) * 16, SH / 2 + (Math.random() - 0.5) * 16);
+    g.rotate((Math.random() - 0.5) * 0.02);
+    g.drawImage(scareImg, -scareImg.width * s / 2, -scareImg.height * s / 2,
+                scareImg.width * s, scareImg.height * s);
+    g.restore();
+    const vg0 = g.createRadialGradient(SW / 2, SH / 2, Math.min(SW, SH) * 0.2,
+                                       SW / 2, SH / 2, Math.max(SW, SH) * 0.7);
+    vg0.addColorStop(0, 'rgba(0,0,0,0)');
+    vg0.addColorStop(1, 'rgba(0,0,0,0.92)');
+    g.fillStyle = vg0;
+    g.fillRect(0, 0, SW, SH);
+    return;
+  }
+
+  /* --- procedural মুখ --- */
+  const F = FACES[vi];
+  const base = Math.max(SW / 520, SH / 700) * scale;
+  g.save();
+  g.translate(SW / 2, SH / 2);
+  g.scale(base, base);
+  g.rotate(Math.sin(t * 22) * 0.012);
+
+  const head = g.createRadialGradient(-50, -110, 40, 0, 0, 320);
+  head.addColorStop(0, F.skin[0]);
+  head.addColorStop(0.55, F.skin[1]);
+  head.addColorStop(1, F.skin[2]);
+  g.fillStyle = head;
+  g.beginPath();
+  g.ellipse(0, -15, 190, 245, 0, 0, Math.PI * 2);
+  g.fill();
+
+  g.fillStyle = 'rgba(0,0,0,0.28)';
+  g.beginPath(); g.ellipse(-135, 45, 60, 150, 0.22, 0, Math.PI * 2); g.fill();
+  g.beginPath(); g.ellipse(138, 45, 58, 150, -0.22, 0, Math.PI * 2); g.fill();
+
+  g.strokeStyle = 'rgba(0,0,0,0.55)';
+  g.lineWidth = 15;
+  g.lineCap = 'round';
+  g.beginPath(); g.moveTo(-140, -140); g.quadraticCurveTo(-96, -172, -34, -145); g.stroke();
+  g.beginPath(); g.moveTo(142, -142); g.quadraticCurveTo(98, -174, 36, -147); g.stroke();
+
+  const blink = 1 + Math.sin(t * 30) * 0.08;
+  g.fillStyle = F.eyeFill;
+  g.beginPath(); g.ellipse(-74, -70, 52 * blink, 64 * blink, -0.12, 0, Math.PI * 2); g.fill();
+  g.beginPath(); g.ellipse(76, -72, 50 * blink, 62 * blink, 0.12, 0, Math.PI * 2); g.fill();
+
+  g.save();
+  g.shadowColor = F.glow;
+  g.shadowBlur = 48;
+  g.fillStyle = F.pupil;
+  const ps = 10 + Math.sin(t * 38) * 3.5;
+  const gazeX = Math.sin(t * 0.7) * 6;
+  g.beginPath(); g.arc(-70 + gazeX, -64, ps, 0, Math.PI * 2); g.fill();
+  g.beginPath(); g.arc(80 + gazeX, -66, ps, 0, Math.PI * 2); g.fill();
+  g.restore();
+
+  g.fillStyle = 'rgba(15,15,12,0.85)';
+  g.beginPath(); g.ellipse(-13, 34, 10, 16, 0.2, 0, Math.PI * 2); g.fill();
+  g.beginPath(); g.ellipse(15, 34, 10, 16, -0.2, 0, Math.PI * 2); g.fill();
+
+  const mh = 105 * F.mouthR + Math.sin(t * 26) * 9;
+  g.fillStyle = '#040404';
+  g.beginPath(); g.ellipse(0, 128, 86 * F.mouthR, mh, 0, 0, Math.PI * 2); g.fill();
+
+  const throat = g.createRadialGradient(0, 155, 8, 0, 155, 95 * F.mouthR);
+  throat.addColorStop(0, 'rgba(120,0,0,0.9)');
+  throat.addColorStop(1, 'rgba(0,0,0,0)');
+  g.fillStyle = throat;
+  g.beginPath(); g.ellipse(0, 150, 80 * F.mouthR, mh * 0.8, 0, 0, Math.PI * 2); g.fill();
+
+  g.fillStyle = F.teeth;
+  const tw = 15;
+  const count = Math.max(8, Math.round(150 * F.mouthR / tw));
+  const yTop = 128 - mh * 0.9;
+  const yBot = 128 + mh * 0.9;
+  for (let i = 0; i < count; i++) {
+    const x = -count * tw / 2 + i * tw;
+    g.beginPath();
+    g.moveTo(x, yTop); g.lineTo(x + tw - 2, yTop);
+    g.lineTo(x + tw / 2 - 1, yTop + (i % 2 ? 36 : 27));
+    g.closePath(); g.fill();
+    g.beginPath();
+    g.moveTo(x, yBot); g.lineTo(x + tw - 2, yBot);
+    g.lineTo(x + tw / 2 - 1, yBot - (i % 2 ? 32 : 24));
+    g.closePath(); g.fill();
+  }
+
+  if (F.blood !== 'rgba(0,0,0,0)') {
+    g.fillStyle = F.blood;
+    [[-78, -12, 8, 90], [68, -10, 7, 110], [10, -4, 6, 62], [-30, 210, 9, 80], [35, 212, 8, 70]]
+      .forEach(function (d) {
+        g.beginPath(); g.rect(d[0], d[1], d[2], d[3]); g.fill();
+        g.beginPath(); g.arc(d[0] + d[2] / 2, d[1] + d[3], d[2] * 0.9, 0, Math.PI * 2); g.fill();
+      });
+  }
+
+  g.lineCap = 'round';
+  if (F.style === 'bloody') {
+    g.strokeStyle = 'rgba(60,0,0,0.75)';
+    g.lineWidth = 3;
+    for (let i = 0; i < 10; i++) {
+      const sx = -170 + Math.random() * 340;
+      const sy = -210 + Math.random() * 200;
+      g.beginPath();
+      g.moveTo(sx, sy);
+      g.quadraticCurveTo(sx + (Math.random() - 0.5) * 90, sy + 70,
+                         sx + (Math.random() - 0.5) * 140, sy + 150);
+      g.stroke();
+    }
+  } else if (F.style === 'pale') {
+    g.strokeStyle = 'rgba(45,10,10,0.8)';
+    g.lineWidth = 2.5;
+    for (let i = 0; i < 6; i++) {
+      g.beginPath();
+      g.moveTo(-150 + Math.random() * 300, -205 + Math.random() * 80);
+      g.lineTo(-150 + Math.random() * 300, -110 + Math.random() * 150);
+      g.stroke();
+    }
+  } else {
+    g.strokeStyle = 'rgba(0,255,120,0.30)';
+    g.lineWidth = 2;
+    for (let i = 0; i < 14; i++) {
+      g.beginPath();
+      g.moveTo(-180 + Math.random() * 360, -220 + Math.random() * 440);
+      g.lineTo(-180 + Math.random() * 360, -220 + Math.random() * 440);
+      g.stroke();
+    }
+  }
+
+  g.restore();
+
+  const vg = g.createRadialGradient(SW / 2, SH / 2, Math.min(SW, SH) * 0.2,
+                                    SW / 2, SH / 2, Math.max(SW, SH) * 0.7);
+  vg.addColorStop(0, 'rgba(0,0,0,0)');
+  vg.addColorStop(1, 'rgba(0,0,0,0.92)');
+  g.fillStyle = vg;
+  g.fillRect(0, 0, SW, SH);
+}
+
+function endScare() {
+  scareActive = false;
+  scareT0 = 0;
+  scareHit2 = false;
+  stopScareAudio(false);
+  sctx.setTransform(1, 0, 0, 1, 0, 0);
+  sctx.clearRect(0, 0, scareCanvas.width, scareCanvas.height);
+  scareCanvas.classList.add('off');
+  wrapper.classList.remove('quake');
+  lastTime = 0;
+}
+
+/* ================= flow ================= */
+function startGame() {
+  initAudio();
+  loadScareImage();
+  cancelAnimationFrame(animationId);
+
+  sizeScare();
+  scareCanvas.classList.add('off');
+  wrapper.classList.remove('quake');
+  stopScareAudio(true);
+
+  startScreen.classList.add('hidden');
+  gameOverScreen.classList.add('hidden');
+  pauseScreen.classList.add('hidden');
+
+  player.x = W / 2 - CAR_WIDTH / 2;
+  player.speed = 5; player.vx = 0; player.angle = 0;
+
+  score = 0; roadOffset = 0; hbClock = 0;
+  enemies = []; particles = []; explosion = [];
+  scareDone = false; scareActive = false; isPaused = false;
+  pointer.active = false;
+
+  bestDisplay.innerText = best;
+  scoreDisplay.innerText = '0';
+  speedDisplay.innerText = '60';
+
+  initEnvironment();
+  render();
+  isGameRunning = true;
+  lastTime = 0;
+  animationId = requestAnimationFrame(gameLoop);
+}
+
+function endGame() {
+  isGameRunning = false;
+  cancelAnimationFrame(animationId);
+  playCrash();
+  updateEngine(0, false);
+
+  wrapper.classList.add('quake');
+  setTimeout(function () { wrapper.classList.remove('quake'); }, 500);
+  explode(player.x + player.width / 2, player.y + player.height / 2);
+
+  if (score > best) {
+    best = Math.floor(score);
+    try { localStorage.setItem('neonRacerBest', String(best)); } catch (err) {}
+  }
+  bestDisplay.innerText = best;
+  finalScoreText.innerText = 'Your Final Score: ' + Math.floor(score);
+
+  const t0 = performance.now();
+  (function crashLoop(ts) {
+    const t = (ts - t0) / 1000;
+    for (let i = explosion.length - 1; i >= 0; i--) {
+      const p = explosion[i];
+      p.x += p.vx; p.y += p.vy;
+      p.vx *= 0.96;
+      p.vy = p.vy * 0.96 + 0.15;
+      p.life -= 0.022;
+      if (p.life <= 0) explosion.splice(i, 1);
+    }
+    render();
+    if (t < 0.7) requestAnimationFrame(crashLoop);
+    else gameOverScreen.classList.remove('hidden');
+  })(performance.now());
+}
+
+function togglePause() {
+  if (!isGameRunning || scareActive) return;
+  isPaused = !isPaused;
+  pauseScreen.classList.toggle('hidden', !isPaused);
+  updateEngine(player.speed, !isPaused);
+  lastTime = 0;
+}
+
+window.startGame = startGame;
+window.togglePause = togglePause;
+
+/* first paint */
+sizeScare();
+loadScareImage();
+bestDisplay.innerText = best;
+initEnvironment();
+drawBackground();
+drawCar(player.x, player.y, player.width, player.height, '#0ea5e9', 0, true);
+
+})();
+</script>
+</body>
+</html>
